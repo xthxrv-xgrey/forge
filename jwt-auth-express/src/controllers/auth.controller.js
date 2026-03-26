@@ -29,55 +29,51 @@ const updateRefreshToken = async (refreshToken, user, res) => {
 export const registerUser = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
-    // Valid Checks
-
     if (!username || !email || !password)
         throw new ApiError(400, "All fields are required");
 
     if (username.length < 3)
-        throw new ApiError(400, "Username must have atleast 3 characters");
+        throw new ApiError(422, "Username must have at least 3 characters");
 
-    if (20 < username.length)
-        throw new ApiError(400, "Username must have atmost 20 characters");
+    if (username.length > 20)
+        throw new ApiError(422, "Username must have at most 20 characters");
 
-    if (!validEmail(email)) throw new ApiError(400, "Invalid Email Address");
+    if (!validEmail(email))
+        throw new ApiError(422, "Invalid email address");
 
     if (password.length < 6)
-        throw new ApiError(400, "Password must have atleast 6 characters");
+        throw new ApiError(422, "Password must have at least 6 characters");
 
-    if (30 < password.length)
-        throw new ApiError(400, "Password must have atmost 30 characters");
+    if (password.length > 30)
+        throw new ApiError(422, "Password must have at most 30 characters");
 
     const usernameNormalized = username.toLowerCase();
     const emailNormalized = email.toLowerCase();
-    // Existing user check
 
     const existingUser = await User.findOne({
         $or: [{ username: usernameNormalized }, { email: emailNormalized }],
     });
 
-    if (existingUser) throw new ApiError(400, "User already exists");
+    if (existingUser)
+        throw new ApiError(409, "An account with this username or email already exists");
 
-    // Create User
     const user = await User.create({
         username: usernameNormalized,
         email: emailNormalized,
         password,
     });
-    // Generation of Access and Refresh Token and Update
 
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
     await updateRefreshToken(refreshToken, user, res);
 
-    // return safeuser and accestoken
     const safeUser = user.toObject();
     delete safeUser.password;
     delete safeUser.refreshToken;
 
     return res.status(201).json(
-        new ApiResponse(201, "User registered successfully!", {
-            safeUser,
+        new ApiResponse(201, "Account created successfully", {
+            user: safeUser,
             accessToken,
         })
     );
@@ -86,7 +82,6 @@ export const registerUser = asyncHandler(async (req, res) => {
 export const loginUser = asyncHandler(async (req, res) => {
     const { identifier, password } = req.body;
 
-    // validity check
     if (!identifier || !password)
         throw new ApiError(400, "All fields are required");
 
@@ -99,25 +94,25 @@ export const loginUser = asyncHandler(async (req, res) => {
         ],
     }).select("+password");
 
-    if (!user) throw new ApiError(400, "Invalid credentials!");
+    if (!user)
+        throw new ApiError(401, "Invalid credentials");
 
     const isPasswordValid = await user.comparePassword(password);
 
-    if (!isPasswordValid) throw new ApiError(400, "Invalid credentials!");
+    if (!isPasswordValid)
+        throw new ApiError(401, "Invalid credentials");
 
-    // Genrate Access and Refresh Tokens
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
     await updateRefreshToken(refreshToken, user, res);
 
-    // return safeuser and accestoken
     const safeUser = user.toObject();
     delete safeUser.password;
     delete safeUser.refreshToken;
 
     return res.status(200).json(
-        new ApiResponse(200, "Login successfully!", {
-            safeUser,
+        new ApiResponse(200, "Logged in successfully", {
+            user: safeUser,
             accessToken,
         })
     );
@@ -126,51 +121,40 @@ export const loginUser = asyncHandler(async (req, res) => {
 export const refreshAccessToken = asyncHandler(async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
-    // Check if token exists
-    if (!refreshToken) {
-        throw new ApiError(401, "Unauthorized Access!");
-    }
+    if (!refreshToken)
+        throw new ApiError(401, "No refresh token provided");
 
-    // Verify token safely
     let decoded;
     try {
         decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     } catch (error) {
-        throw new ApiError(401, "Invalid or expired refresh token");
+        throw new ApiError(401, "Refresh token is invalid or has expired");
     }
 
-    // Find user and include refreshToken
     const user = await User.findById(decoded._id).select("+refreshToken");
 
-    if (!user) {
-        throw new ApiError(401, "Invalid Refresh Token!");
-    }
+    if (!user)
+        throw new ApiError(401, "User no longer exists");
 
-    // Hash incoming refresh token
     const hashedIncomingToken = crypto
         .createHash("sha256")
         .update(refreshToken)
         .digest("hex");
 
-    // Compare with stored hashed token
-    if (user.refreshToken !== hashedIncomingToken) {
-        throw new ApiError(401, "Refresh token mismatch!");
-    }
+    if (user.refreshToken !== hashedIncomingToken)
+        throw new ApiError(401, "Refresh token has already been used or revoked");
 
-    // Generate new tokens (rotation)
     const accessToken = user.generateAccessToken();
     const newRefreshToken = user.generateRefreshToken();
-
     await updateRefreshToken(newRefreshToken, user, res);
 
-    // Prepare safe user object
     const safeUser = user.toObject();
     delete safeUser.password;
     delete safeUser.refreshToken;
 
     return res.status(200).json(
-        new ApiResponse(200, "Tokens refreshed successfully!", {
-            safeUser,
+        new ApiResponse(200, "Token refreshed successfully", {
+            user: safeUser,
             accessToken,
         })
     );
