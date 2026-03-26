@@ -94,9 +94,9 @@ Register a new user.
 **Request Body:**
 ```json
 {
-  "username": "batman",
-  "email": "batman@gmail.com",
-  "password": "batmanHuMeHai"
+  "username": "test",
+  "email": "test@gmail.com",
+  "password": "test123"
 }
 ```
 
@@ -106,7 +106,7 @@ Register a new user.
   "statusCode": 201,
   "message": "User registered successfully!",
   "data": {
-    "safeUser": { "_id": "...", "username": "batman", "email": "batman@gmail.com" },
+    "safeUser": { "_id": "...", "username": "test", "email": "test@gmail.com" },
     "accessToken": "<jwt>"
   },
   "success": true
@@ -122,8 +122,8 @@ Login with username or email.
 **Request Body:**
 ```json
 {
-  "identifier": "batman",
-  "password": "batmanHuMeHai"
+  "identifier": "test",
+  "password": "test123"
 }
 ```
 
@@ -219,4 +219,4 @@ This is part of a personal boilerplate collection:
 
 **Atharv Agrey** — [@xthxrv_xgrey](https://github.com/xthxrv-xgrey)
 
-> Built as a learning project on Day 7 of backend development.
+> Built as a learning project of backend development.
