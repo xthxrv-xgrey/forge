@@ -102,9 +102,9 @@ Register a new user.
 **Request Body:**
 ```json
 {
-  "username": "batman",
-  "email": "batman@gmail.com",
-  "password": "batman123"
+  "username": "test",
+  "email": "test@gmail.com",
+  "password": "test123"
 }
 ```
 
@@ -132,8 +132,8 @@ Login with username or email.
 **Request Body:**
 ```json
 {
-  "identifier": "batman",
-  "password": "batman123"
+  "identifier": "test",
+  "password": "test123"
 }
 ```
 
