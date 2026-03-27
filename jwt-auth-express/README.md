@@ -114,7 +114,7 @@ Register a new user.
   "statusCode": 201,
   "message": "User registered successfully.",
   "data": {
-    "safeUser": { "_id": "...", "username": "batman", "email": "batman@gmail.com" },
+    "safeUser": { "_id": "...", "username": "test", "email": "test@gmail.com" },
     "accessToken": "<jwt>"
   },
   "success": true
