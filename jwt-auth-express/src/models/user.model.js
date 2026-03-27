@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
         trim: true,
         lowercase: true,
         minlength: [3, "Username must contain at least 3 characters"],
-        maxlength: [20, "Username must contain at least 20 characters"],
+        maxlength: [20, "Username must contain atmost 20 characters"],
     },
     email: {
         type: String,
@@ -23,11 +23,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Password is required"],
         minlength: [6, "Password must contain at least 6 characters"],
-        maxlength: [30, "Password must contain at least 30 characters"],
-        select: false,
-    },
-    refreshToken: {
-        type: String,
+        maxlength: [30, "Password must contain atmost 30 characters"],
         select: false,
     },
 });
@@ -41,13 +37,16 @@ userSchema.methods.comparePassword = async function (password) {
     return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateAccessToken = function (session) {
+    if (!session?._id) {
+        throw new Error("Session is required for access token");
+    }
     return jwt.sign(
         {
             _id: this._id,
             email: this.email,
             username: this.username,
-            fullName: this.fullName,
+            sessionId: session?._id.toString(),
         },
         process.env.ACCESS_TOKEN_SECRET,
         {

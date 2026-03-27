@@ -1,23 +1,29 @@
-import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/asyncHandler.util.js";
 import { ApiError } from "../utils/ApiError.util.js";
 import { ApiResponse } from "../utils/ApiResponse.util.js";
+import { hashToken } from "../utils/hashToken.util.js";
 import { User } from "../models/user.model.js";
+import { Session } from "../models/session.model.js";
 
 const validEmail = (email) => {
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     return emailPattern.test(email);
 };
 
-const updateRefreshToken = async (refreshToken, user, res) => {
-    const hashedRefreshToken = crypto
-        .createHash("sha256")
-        .update(refreshToken)
-        .digest("hex");
-    user.refreshToken = hashedRefreshToken;
-    await user.save({ validateBeforeSave: false });
+const updateRefreshToken = async (refreshToken, session, res) => {
+    session.refreshToken = hashToken(refreshToken);
+    await session.save({ validateBeforeSave: false });
 
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+};
+
+const setRefreshTokenCookie = (refreshToken, res) => {
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -30,22 +36,21 @@ export const registerUser = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
     if (!username || !email || !password)
-        throw new ApiError(400, "All fields are required");
+        throw new ApiError(400, "All fields are required.");
 
     if (username.length < 3)
-        throw new ApiError(422, "Username must have at least 3 characters");
+        throw new ApiError(400, "Username must be at least 3 characters long.");
 
     if (username.length > 20)
-        throw new ApiError(422, "Username must have at most 20 characters");
+        throw new ApiError(400, "Username must be at most 20 characters long.");
 
-    if (!validEmail(email))
-        throw new ApiError(422, "Invalid email address");
+    if (!validEmail(email)) throw new ApiError(400, "Invalid email address.");
 
     if (password.length < 6)
-        throw new ApiError(422, "Password must have at least 6 characters");
+        throw new ApiError(400, "Password must be at least 6 characters long.");
 
     if (password.length > 30)
-        throw new ApiError(422, "Password must have at most 30 characters");
+        throw new ApiError(400, "Password must be at most 30 characters long.");
 
     const usernameNormalized = username.toLowerCase();
     const emailNormalized = email.toLowerCase();
@@ -54,8 +59,7 @@ export const registerUser = asyncHandler(async (req, res) => {
         $or: [{ username: usernameNormalized }, { email: emailNormalized }],
     });
 
-    if (existingUser)
-        throw new ApiError(409, "An account with this username or email already exists");
+    if (existingUser) throw new ApiError(400, "User already exists.");
 
     const user = await User.create({
         username: usernameNormalized,
@@ -63,17 +67,24 @@ export const registerUser = asyncHandler(async (req, res) => {
         password,
     });
 
-    const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-    await updateRefreshToken(refreshToken, user, res);
+
+    const session = await Session.create({
+        user: user._id,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        refreshToken: hashToken(refreshToken),
+    });
+
+    setRefreshTokenCookie(refreshToken, res);
+    const accessToken = user.generateAccessToken(session);
 
     const safeUser = user.toObject();
     delete safeUser.password;
-    delete safeUser.refreshToken;
 
     return res.status(201).json(
-        new ApiResponse(201, "Account created successfully", {
-            user: safeUser,
+        new ApiResponse(201, "User registered successfully.", {
+            safeUser,
             accessToken,
         })
     );
@@ -83,7 +94,7 @@ export const loginUser = asyncHandler(async (req, res) => {
     const { identifier, password } = req.body;
 
     if (!identifier || !password)
-        throw new ApiError(400, "All fields are required");
+        throw new ApiError(400, "All fields are required.");
 
     const identifierNormalized = identifier.toLowerCase();
 
@@ -94,67 +105,93 @@ export const loginUser = asyncHandler(async (req, res) => {
         ],
     }).select("+password");
 
-    if (!user)
-        throw new ApiError(401, "Invalid credentials");
+    if (!user) throw new ApiError(400, "Invalid credentials.");
 
     const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) throw new ApiError(400, "Invalid credentials.");
 
-    if (!isPasswordValid)
-        throw new ApiError(401, "Invalid credentials");
-
-    const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-    await updateRefreshToken(refreshToken, user, res);
+
+    const session = await Session.create({
+        user: user._id,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        refreshToken: hashToken(refreshToken),
+    });
+
+    setRefreshTokenCookie(refreshToken, res);
+    const accessToken = user.generateAccessToken(session);
 
     const safeUser = user.toObject();
     delete safeUser.password;
-    delete safeUser.refreshToken;
 
     return res.status(200).json(
-        new ApiResponse(200, "Logged in successfully", {
-            user: safeUser,
+        new ApiResponse(200, "Logged in successfully.", {
+            safeUser,
             accessToken,
         })
     );
 });
 
+export const logoutUser = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) throw new ApiError(401, "Unauthorized access.");
+
+    await Session.findOneAndUpdate(
+        { refreshToken: hashToken(refreshToken), revoked: false },
+        { revoked: true }
+    );
+
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+    });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, "Logged out successfully."));
+});
+
 export const refreshAccessToken = asyncHandler(async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
-    if (!refreshToken)
-        throw new ApiError(401, "No refresh token provided");
+    if (!refreshToken) throw new ApiError(401, "Unauthorized access.");
 
     let decoded;
     try {
         decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     } catch (error) {
-        throw new ApiError(401, "Refresh token is invalid or has expired");
+        throw new ApiError(401, "Invalid or expired refresh token.");
     }
 
-    const user = await User.findById(decoded._id).select("+refreshToken");
+    if (!decoded?._id) throw new ApiError(401, "Invalid refresh token.");
 
-    if (!user)
-        throw new ApiError(401, "User no longer exists");
+    const user = await User.findById(decoded._id);
+    if (!user) throw new ApiError(401, "Invalid refresh token.");
 
-    const hashedIncomingToken = crypto
-        .createHash("sha256")
-        .update(refreshToken)
-        .digest("hex");
+    const session = await Session.findOne({
+        user: user._id,
+        refreshToken: hashToken(refreshToken),
+        revoked: false,
+    });
 
-    if (user.refreshToken !== hashedIncomingToken)
-        throw new ApiError(401, "Refresh token has already been used or revoked");
+    if (!session) {
+        await Session.updateMany({ user: user._id }, { revoked: true });
+        throw new ApiError(401, "Possible token reuse detected.");
+    }
 
-    const accessToken = user.generateAccessToken();
     const newRefreshToken = user.generateRefreshToken();
-    await updateRefreshToken(newRefreshToken, user, res);
+    await updateRefreshToken(newRefreshToken, session, res);
+    const accessToken = user.generateAccessToken(session);
 
     const safeUser = user.toObject();
     delete safeUser.password;
-    delete safeUser.refreshToken;
 
     return res.status(200).json(
-        new ApiResponse(200, "Token refreshed successfully", {
-            user: safeUser,
+        new ApiResponse(200, "Tokens refreshed successfully.", {
+            safeUser,
             accessToken,
         })
     );
