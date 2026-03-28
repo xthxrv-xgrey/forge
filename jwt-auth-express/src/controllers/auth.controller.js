@@ -154,6 +154,27 @@ export const logoutUser = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, "Logged out successfully."));
 });
 
+export const logoutAllSessions = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) throw new ApiError(401, "Unauthorized access.");
+
+    await Session.updateMany(
+        { refreshToken: hashToken(refreshToken), revoked: false },
+        { revoked: true }
+    );
+
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+    });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, "Logged out successfully."));
+});
+
 export const refreshAccessToken = asyncHandler(async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
