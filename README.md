@@ -10,12 +10,12 @@ A personal collection of starter codebases built to skip the setup and get strai
 
 ### Authentication
 
-| Name                                     | Stack                       | Features                                                                                                                |
-| ---------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [`jwt-auth-express`](./jwt-auth-express) | Node.js + Express + MongoDB | Register, Login, Refresh Token Rotation, Token Reuse Detection, Session Tracking, Hashed Refresh Tokens, Secure Cookies |
-| `google-oauth-express`                   | Node.js + Express + MongoDB | Google OAuth 2.0, Passport.js — _coming soon_                                                                           |
-| `otp-verification-express`               | Node.js + Express + MongoDB | Email/SMS OTP, Expiry, Resend Logic — _coming soon_                                                                     |
-| `rbac-express`                           | Node.js + Express + MongoDB | Role-Based Access Control, Protected Routes — _coming soon_                                                             |
+| Name                                     | Stack                       | Features                                                                                                                                    |
+| ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`jwt-auth-express`](./jwt-auth-express) | Node.js + Express + MongoDB | Register, Login, Logout, Logout All, Refresh Token Rotation, Token Reuse Detection, Session Tracking, Hashed Refresh Tokens, Secure Cookies |
+| `google-oauth-express`                   | Node.js + Express + MongoDB | Google OAuth 2.0, Passport.js — _coming soon_                                                                                               |
+| `otp-verification-express`               | Node.js + Express + MongoDB | Email/SMS OTP, Expiry, Resend Logic — _coming soon_                                                                                         |
+| `rbac-express`                           | Node.js + Express + MongoDB | Role-Based Access Control, Protected Routes — _coming soon_                                                                                 |
 
 ---
 
@@ -46,7 +46,7 @@ Each folder has its own `README.md` with full setup instructions and API docs.
 
 ## 🗺️ Roadmap
 
-- [x] JWT Auth — register, login, refresh token rotation
+- [x] JWT Auth — register, login, logout, logout all, refresh token rotation
 - [ ] Google OAuth
 - [ ] OTP Verification
 - [ ] Role-Based Access Control (RBAC)
