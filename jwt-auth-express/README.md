@@ -11,6 +11,7 @@ Handles the full auth lifecycle: register, login, logout, and silent token refre
 - **Register** with username, email, and password validation
 - **Login** with username or email (identifier-based)
 - **Logout** — revokes session server-side and clears cookie
+- **Logout All** — revokes all sessions for the user server-side and clears cookie
 - **Refresh Token Rotation** — new refresh token issued on every refresh, old one invalidated
 - **Token Reuse Detection** — if a stolen/replayed token is detected, all sessions for that user are immediately revoked
 - **Session ID in Access Token** — `sessionId` embedded in JWT payload, enabling per-session middleware validation
@@ -100,24 +101,30 @@ npm start
 Register a new user.
 
 **Request Body:**
+
 ```json
 {
-  "username": "test",
-  "email": "test@gmail.com",
-  "password": "test123"
+    "username": "test",
+    "email": "test@gmail.com",
+    "password": "test123"
 }
 ```
 
 **Response:**
+
 ```json
 {
-  "statusCode": 201,
-  "message": "User registered successfully.",
-  "data": {
-    "safeUser": { "_id": "...", "username": "test", "email": "test@gmail.com" },
-    "accessToken": "<jwt>"
-  },
-  "success": true
+    "statusCode": 201,
+    "message": "User registered successfully.",
+    "data": {
+        "safeUser": {
+            "_id": "...",
+            "username": "test",
+            "email": "test@gmail.com"
+        },
+        "accessToken": "<jwt>"
+    },
+    "success": true
 }
 ```
 
@@ -130,10 +137,11 @@ Sets `refreshToken` as an `httpOnly` cookie. Creates a session entry with IP and
 Login with username or email.
 
 **Request Body:**
+
 ```json
 {
-  "identifier": "test",
-  "password": "test123"
+    "identifier": "test",
+    "password": "test123"
 }
 ```
 
@@ -150,11 +158,12 @@ Revokes the current session server-side and clears the cookie.
 - Clears the `refreshToken` cookie
 
 **Response:**
+
 ```json
 {
-  "statusCode": 200,
-  "message": "Logged out successfully.",
-  "success": true
+    "statusCode": 200,
+    "message": "Logged out successfully.",
+    "success": true
 }
 ```
 
@@ -171,6 +180,7 @@ Get a new access token using the refresh token cookie.
 - Issues new access token with `sessionId` + rotates refresh token
 
 **Response:**
+
 ```json
 {
   "statusCode": 200,
@@ -187,37 +197,43 @@ Get a new access token using the refresh token cookie.
 
 ## 🔒 Security Design
 
-| Concern | Approach |
-|---|---|
-| Password storage | `bcrypt` with salt rounds = 10 |
-| Refresh token storage | SHA-256 hashed in DB, raw only in cookie |
-| Refresh token reuse | Rotation on every refresh — old session token invalidated |
-| Token reuse detection | Invalid refresh token with no session → all user sessions revoked immediately |
-| Session ID in JWT | `sessionId` embedded in access token payload for per-session middleware checks |
-| Token revocation | Sessions have a `revoked` flag — stolen tokens can be invalidated server-side |
-| Cookie flags | `httpOnly`, `sameSite: strict`, `secure` in production |
-| Token expiry | Access: 15m short-lived / Refresh: 7d |
-| Field exposure | `password` has `select: false` on the user model |
-| Session tracking | Every login stores IP + user agent for auditability |
+| Concern               | Approach                                                                       |
+| --------------------- | ------------------------------------------------------------------------------ |
+| Password storage      | `bcrypt` with salt rounds = 10                                                 |
+| Refresh token storage | SHA-256 hashed in DB, raw only in cookie                                       |
+| Refresh token reuse   | Rotation on every refresh — old session token invalidated                      |
+| Token reuse detection | Invalid refresh token with no session → all user sessions revoked immediately  |
+| Session ID in JWT     | `sessionId` embedded in access token payload for per-session middleware checks |
+| Token revocation      | Sessions have a `revoked` flag — stolen tokens can be invalidated server-side  |
+| Cookie flags          | `httpOnly`, `sameSite: strict`, `secure` in production                         |
+| Token expiry          | Access: 15m short-lived / Refresh: 7d                                          |
+| Field exposure        | `password` has `select: false` on the user model                               |
+| Session tracking      | Every login stores IP + user agent for auditability                            |
 
 ---
 
 ## 🛠️ Utilities
 
 ### `ApiError`
+
 Throw structured errors anywhere:
+
 ```js
 throw new ApiError(401, "Invalid credentials.");
 ```
 
 ### `ApiResponse`
+
 Consistent response shape across all routes:
+
 ```js
 res.status(200).json(new ApiResponse(200, "Success", data));
 ```
 
 ### `asyncHandler`
+
 Wraps async controllers — no try/catch boilerplate in every route:
+
 ```js
 export const myController = asyncHandler(async (req, res) => {
     // errors are caught and forwarded automatically
@@ -225,7 +241,9 @@ export const myController = asyncHandler(async (req, res) => {
 ```
 
 ### `hashToken`
+
 SHA-256 hash utility used for refresh tokens:
+
 ```js
 import { hashToken } from "../utils/hashToken.util.js";
 const hashed = hashToken(rawToken);
