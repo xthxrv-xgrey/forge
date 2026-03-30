@@ -269,7 +269,7 @@ Part of the **[forge](../README.md)** boilerplate collection:
 
 - [x] **jwt-auth-express** ← you are here
 - [ ] google-oauth-express
-- [ ] otp-verification-express
+- [x] otp-verification-express
 - [ ] rbac-express
 
 ---
