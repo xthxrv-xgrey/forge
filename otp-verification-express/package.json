@@ -1,0 +1,26 @@
+{
+  "name": "otp-verification-express",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "Atharv Agrey",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js",
+    "start": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.3.3",
+    "morgan": "^1.10.1",
+    "nodemailer": "^8.0.4",
+    "nodemon": "^3.1.14"
+  }
+}
