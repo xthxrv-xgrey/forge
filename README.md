@@ -6,6 +6,14 @@ A personal collection of starter codebases built to skip the setup and get strai
 
 ---
 
+## 💡 Why Forge?
+
+Setting up authentication, sessions, and security from scratch is repetitive and error-prone.
+
+Forge provides pre-built, secure, and scalable boilerplates so you can focus on building features — not reinventing the backend.
+
+---
+
 ## 📦 Boilerplates
 
 ### Authentication
