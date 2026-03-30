@@ -1,6 +1,6 @@
 # 📧 otp-verification-express
 
-> Production-ready email OTP verification boilerplate — Node.js + Express + MongoDB
+> Production-ready backend boilerplates designed to eliminate setup time and accelerate real-world development — Node.js + Express + MongoDB
 
 Extends JWT auth with a full email verification flow. New users are held in a temporary collection, verified via a 6-digit OTP sent to their inbox, then promoted to the main users collection — all with hashed OTPs, TTL-based expiry, and zero plain-text secrets stored.
 
