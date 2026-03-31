@@ -9,7 +9,7 @@ Extends JWT auth with a full email verification flow. New users are held in a te
 ## ✨ Features
 
 - **Register** with username, email, and password validation
-- **Email OTP Verification** — 6-digit OTP sent via Gmail, expires in 2 minutes
+- **Email OTP Verification** — 6-digit OTP sent via Gmail, expires in 5 minutes
 - **Unverified User Collection** — pending registrations stored separately, auto-deleted by MongoDB TTL
 - **Hashed OTPs** — SHA-256 hashed before storing, raw OTP only ever lives in the email
 - **Cryptographically Secure OTP** — generated with `crypto.randomInt`, not `Math.random`
@@ -17,6 +17,9 @@ Extends JWT auth with a full email verification flow. New users are held in a te
 - **Login** with username or email (identifier-based)
 - **Logout** — revokes session server-side and clears cookie
 - **Logout All** — revokes all sessions for the user server-side and clears cookie
+- **Change Password** — authenticated route, invalidates all sessions on success
+- **Forgot Password** — sends OTP to registered email, rate-limited to 1 request per minute
+- **Reset Password** — verifies OTP and resets password, invalidates all sessions on success
 - **Refresh Token Rotation** — new refresh token issued on every refresh, old one invalidated
 - **Token Reuse Detection** — if a stolen/replayed token is detected, all sessions are immediately revoked
 - **Session ID in Access Token** — `sessionId` embedded in JWT payload, enabling per-session middleware validation
@@ -45,6 +48,7 @@ Extends JWT auth with a full email verification flow. New users are held in a te
     ├── models/
     │   ├── user.model.js
     │   ├── unverifiedUser.model.js
+    │   ├── resetPasswordUser.model.js
     │   └── session.model.js
     ├── services/
     │   └── email.service.js
@@ -116,7 +120,7 @@ npm start
 
 ### `POST /api/v1/auth/register`
 
-Creates an unverified user and sends a 6-digit OTP to the provided email. The pending record auto-deletes after **2 minutes** if not verified.
+Creates an unverified user and sends a 6-digit OTP to the provided email. The pending record auto-deletes after **5 minutes** if not verified. Rate-limited to 1 request per minute per email.
 
 **Request Body:**
 
@@ -227,6 +231,92 @@ Revokes all active sessions for the user.
 
 ---
 
+### `POST /api/v1/auth/change-password`
+
+Changes the password for an authenticated user. Requires a valid access token in the `Authorization` header. Invalidates all active sessions on success.
+
+**Headers:**
+
+```
+Authorization: Bearer <access_token>
+```
+
+**Request Body:**
+
+```json
+{
+  "oldPassword": "test123",
+  "newPassword": "newpass456"
+}
+```
+
+**Response:**
+
+```json
+{
+  "statusCode": 200,
+  "message": "Password changed successfully.",
+  "data": null,
+  "success": true
+}
+```
+
+---
+
+### `POST /api/v1/auth/forgot-password`
+
+Looks up the user by username or email and sends a password reset OTP to their registered email. OTP expires in **5 minutes**. Rate-limited to 1 request per minute per email.
+
+**Request Body:**
+
+```json
+{
+  "identifier": "test"
+}
+```
+
+**Response:**
+
+```json
+{
+  "statusCode": 200,
+  "message": "OTP sent successfully. Check your email.",
+  "data": {
+    "email": "test@gmail.com"
+  },
+  "success": true
+}
+```
+
+---
+
+### `POST /api/v1/auth/reset-password`
+
+Verifies the reset OTP and sets a new password. Invalidates all active sessions on success.
+
+**Request Body:**
+
+```json
+{
+  "email": "test@gmail.com",
+  "otp": "000000",
+  "newPassword": "newpass456"
+}
+```
+
+**Response:**
+
+```json
+{
+  "statusCode": 200,
+  "message": "Password reset successfully.",
+  "data": null,
+  "success": true
+}
+```
+
+---
+
 ### `POST /api/v1/auth/refresh`
 
 Get a new access token using the refresh token cookie.
@@ -241,13 +331,13 @@ Get a new access token using the refresh token cookie.
 
 ```json
 {
-    "statusCode": 200,
-    "message": "Tokens refreshed successfully.",
-    "data": {
-        "safeUser": { "..." },
-        "accessToken": "<new_jwt>"
-    },
-    "success": true
+  "statusCode": 200,
+  "message": "Tokens refreshed successfully.",
+  "data": {
+    "safeUser": { "..." },
+    "accessToken": "<new_jwt>"
+  },
+  "success": true
 }
 ```
 
@@ -260,7 +350,11 @@ Get a new access token using the refresh token cookie.
 | Password storage      | `bcrypt` with salt rounds = 10, hashed in `UnverifiedUser`, safely transferred to `User` |
 | OTP generation        | `crypto.randomInt` — cryptographically secure                                            |
 | OTP storage           | SHA-256 hashed in DB, raw OTP only ever lives in the email                               |
-| OTP expiry            | MongoDB TTL — `UnverifiedUser` doc auto-deleted after 120 seconds                        |
+| OTP expiry (register) | MongoDB TTL — `UnverifiedUser` doc auto-deleted after 5 minutes                          |
+| OTP expiry (reset)    | MongoDB TTL — `ResetPasswordUser` doc auto-deleted after 5 minutes                       |
+| OTP rate limiting     | 1 request per minute per email — enforced by checking `createdAt` diff                   |
+| Password change       | Requires valid access token + correct old password, revokes all sessions                 |
+| Password reset        | Requires valid OTP, revokes all sessions                                                 |
 | Refresh token storage | SHA-256 hashed in DB, raw only in cookie                                                 |
 | Refresh token reuse   | Rotation on every refresh — old session invalidated                                      |
 | Token reuse detection | Invalid refresh token with no session → all user sessions revoked immediately            |
@@ -272,24 +366,45 @@ Get a new access token using the refresh token cookie.
 
 ---
 
-## 🔄 Verification Flow
+## 🔄 Auth Flows
+
+**Registration & Verification**
 
 ```
 POST /register
     → validate fields
     → check User collection (username + email must be free)
-    → check UnverifiedUser collection (no pending registration)
+    → check UnverifiedUser (rate limit: reject if < 60s since last OTP)
+    → delete stale UnverifiedUser if exists
     → generate crypto OTP → hash it → send email
-    → create UnverifiedUser (TTL: 120s)
+    → create UnverifiedUser (TTL: 5 min)
 
 POST /verify-user
     → find UnverifiedUser by email
         → not found = OTP expired or never created → reject
-    → compare hashed OTP
-        → mismatch → reject
+    → compare hashed OTP → mismatch → reject
     → create User (password hashed by pre-save hook)
     → delete UnverifiedUser
     → create Session → issue tokens
+```
+
+**Forgot & Reset Password**
+
+```
+POST /forgot-password
+    → find user by username or email → not found → reject
+    → check ResetPasswordUser (rate limit: reject if < 60s since last OTP)
+    → delete stale ResetPasswordUser if exists
+    → generate crypto OTP → hash it → send email
+    → create ResetPasswordUser (TTL: 5 min)
+
+POST /reset-password
+    → find ResetPasswordUser by email
+        → not found = OTP expired → reject
+    → compare hashed OTP → mismatch → reject
+    → validate new password
+    → update User password → revoke all sessions → clear cookie
+    → delete ResetPasswordUser
 ```
 
 ---
