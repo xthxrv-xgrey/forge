@@ -9,7 +9,6 @@ A personal collection of starter codebases built to skip the setup and get strai
 ## 💡 Why Forge?
 
 Setting up authentication, sessions, and security from scratch is repetitive and error-prone.
-
 Forge provides pre-built, secure, and scalable boilerplates so you can focus on building features — not reinventing the backend.
 
 ---
@@ -21,7 +20,7 @@ Forge provides pre-built, secure, and scalable boilerplates so you can focus on 
 | Name                                                     | Stack                       | Features                                                                                                                                    |
 | -------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`jwt-auth-express`](./jwt-auth-express)                 | Node.js + Express + MongoDB | Register, Login, Logout, Logout All, Refresh Token Rotation, Token Reuse Detection, Session Tracking, Hashed Refresh Tokens, Secure Cookies |
-| [`otp-verification-express`](./otp-verification-express) | Node.js + Express + MongoDB | Email OTP, TTL-based Expiry, Hashed OTPs, Crypto-safe Generation, Full JWT Auth Flow                                                        |
+| [`otp-verification-express`](./otp-verification-express) | Node.js + Express + MongoDB | Email OTP, TTL-based Expiry, Hashed OTPs, Crypto-safe Generation, Change Password, Forgot Password, Reset Password, Full JWT Auth Flow      |
 | `google-oauth-express`                                   | Node.js + Express + MongoDB | Google OAuth 2.0, Passport.js — _coming soon_                                                                                               |
 | `rbac-express`                                           | Node.js + Express + MongoDB | Role-Based Access Control, Protected Routes — _coming soon_                                                                                 |
 
@@ -55,7 +54,7 @@ Each folder has its own `README.md` with full setup instructions and API docs.
 ## 🗺️ Roadmap
 
 - [x] JWT Auth — register, login, logout, logout all, refresh token rotation
-- [x] OTP Verification — email OTP, TTL expiry, hashed OTPs, full auth flow
+- [x] OTP Verification — email OTP, TTL expiry, hashed OTPs, change/forgot/reset password, full auth flow
 - [ ] Google OAuth
 - [ ] Role-Based Access Control (RBAC)
 - [ ] File Upload (Cloudinary)
