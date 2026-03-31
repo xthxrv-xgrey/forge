@@ -239,11 +239,7 @@ export const loginUser = asyncHandler(async (req, res) => {
 // @route POST /api/v1/auth/logout
 // @access Private
 export const logoutUser = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-
-  if (!refreshToken) throw new ApiError(401, "Unauthorized access.");
-
-  await Session.findOneAndDelete({ refreshToken: hashToken(refreshToken) });
+  await Session.findByIdAndDelete(req.session._id);
 
   res.clearCookie("refreshToken", {
     httpOnly: true,
@@ -258,20 +254,7 @@ export const logoutUser = asyncHandler(async (req, res) => {
 // @route POST /api/v1/auth/logout-all
 // @access Private
 export const logoutAll = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-
-  if (!refreshToken) throw new ApiError(401, "Unauthorized access.");
-
-  let decoded;
-  try {
-    decoded = jwt.verify(refreshToken, config.REFRESH_TOKEN_SECRET);
-  } catch (error) {
-    throw new ApiError(401, "Invalid or expired refresh token.");
-  }
-
-  if (!decoded?._id) throw new ApiError(401, "Invalid refresh token.");
-
-  await Session.deleteMany({ userId: decoded._id });
+  await Session.deleteMany({ userId: req.user._id });
 
   res.clearCookie("refreshToken", {
     httpOnly: true,
@@ -288,39 +271,22 @@ export const logoutAll = asyncHandler(async (req, res) => {
 // @route POST /api/v1/auth/change-password
 // @access Private
 export const changePassword = asyncHandler(async (req, res) => {
-  const accessToken = req.header("Authorization")?.replace("Bearer ", "");
-
   const { oldPassword, newPassword } = req.body;
 
-  if (!accessToken) throw new ApiError(401, "Unauthorized access.");
-
-  let decoded;
-  try {
-    decoded = jwt.verify(accessToken, config.ACCESS_TOKEN_SECRET);
-  } catch {
-    throw new ApiError(401, "Invalid or expired access token.");
-  }
-
-  const user = await User.findById(decoded._id).select("+password");
-  if (!user) throw new ApiError(404, "User not found.");
+  const user = await User.findById(req.user._id).select("+password");
 
   validatePassword(newPassword);
 
-  if (oldPassword === newPassword) {
+  if (oldPassword === newPassword)
     throw new ApiError(
       400,
       "New password must be different from old password.",
     );
-  }
 
   const isPasswordValid = await user.comparePassword(oldPassword);
-  if (!isPasswordValid) {
-    throw new ApiError(400, "Invalid old password.");
-  }
+  if (!isPasswordValid) throw new ApiError(400, "Invalid old password.");
 
   user.password = newPassword;
-  user.refreshToken = null;
-
   await user.save();
   await Session.deleteMany({ userId: user._id });
 
